@@ -8,6 +8,8 @@ module.exports.Api42 = class Api42 {
   #expiration;
   #throttle;
 
+  secretValidUntil;
+
   constructor() {
     this.#throttle = throttledQueue(2, 1050, true);
   }
@@ -22,18 +24,16 @@ module.exports.Api42 = class Api42 {
       })
       .then((responseJson) => {
         this.#token = responseJson.access_token;
-        this.#expiration = responseJson.secret_valid_until * 1000;
+        this.#expiration = (responseJson.expires_in * 1000) + Date.now();
+        this.secretValidUntil = responseJson.secret_valid_until;
         console.warn("42API token generated.");
       })
   }
 
   async #fetchUrl(endpoint, pagination) {
-    try {
-      await this.#getToken();
-    } catch {
-      return ;
-    }
-    console.warn(`${endpoint}`);
+    try { await this.#getToken();} catch {return ;}
+    
+    // console.warn(`${endpoint}`);
     return this.#throttle(() => {
       const responseJson = fetch(`${endpoint}`, {
         method: "GET",
@@ -41,26 +41,21 @@ module.exports.Api42 = class Api42 {
           Authorization: `Bearer ${this.#token}`,
         },
       }).then((response) => {
-        if (response.ok) {
-          if (pagination) {
-            var links = parse(response.headers.get("link"));
-            return {
-              next: (links && links.next) ? links.next.url : null,
-              responseJson: response.json()
-            };
-          } else {
-            return response.json();
-          }
+        if (!response.ok) {
+          throw new Error({endpoint: endpoint, response: response.json()});
         }
-        response.json().then((responseJson) => {
-          console.error(responseJson);
-        });
-        throw new Error(
-          `Failed to fetch ${endpoint}`,
-        );
-      });
-      return responseJson;
-    });
+        if (pagination) {
+          var links = parse(response.headers.get("link"));
+          return {
+            next: (links && links.next) ? links.next.url : null,
+            responseJson: response.json()
+          };
+        } else {
+          return response.json();
+        }
+      })
+      return responseJson
+    ;})
   }
 
   async #paginatedFetch(endpoint, perPage) {
