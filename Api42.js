@@ -122,4 +122,8 @@ module.exports.Api42 = class Api42 {
       `https://api.intra.42.fr/v2/users/${user}/projects_users`
     );
   }
+
+  async getAllCursus() {
+    return await this.#paginatedFetch("https://api.intra.42.fr/v2/cursus");
+  }
 };
