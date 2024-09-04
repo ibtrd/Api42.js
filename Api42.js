@@ -33,7 +33,8 @@ module.exports.Api42 = class Api42 {
   async #fetchUrl(endpoint, pagination) {
     try { await this.#getToken();} catch {return ;}
     
-    // console.warn(`${endpoint}`);
+    if (process.env.API42_DEV)
+      console.warn(`${endpoint}`);
     return this.#throttle(() => {
       const responseJson = fetch(`${endpoint}`, {
         method: "GET",
@@ -125,5 +126,9 @@ module.exports.Api42 = class Api42 {
 
   async getAllCursus() {
     return await this.#paginatedFetch("https://api.intra.42.fr/v2/cursus");
+  }
+
+  async getEventUsers(eventId) {
+    return await this.#paginatedFetch(`https://api.intra.42.fr/v2/events/${eventId}/events_users`);
   }
 };
