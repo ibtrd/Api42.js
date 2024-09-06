@@ -3,10 +3,11 @@ const parse = require("parse-link-header");
 const { timeToSeconds } = require('./utils/logtime');
 const { tokenOptions } = require('./utils/tokenOpions');
 
+const throttle = throttledQueue(2, 1100, true);
+
 module.exports.Api42 = class Api42 {
   #token;
   #expiration;
-  #throttle = throttledQueue(2, 1100, true);
   #site = "https://api.intra.42.fr";
 
   secretValidUntil;
@@ -28,10 +29,10 @@ module.exports.Api42 = class Api42 {
       });
   }
 
-  async #fetchUrl(endpoint, pagination) {
+  async #fetchUrl(endpoint, pagination, attempt = 0) {
     try { await this.#getToken(); } catch { return; }
     if (process.env.API42_DEV) console.warn(`${endpoint}`);
-    return this.#throttle(() => {
+    return throttle(() => {
       const responseJson = fetch(`${endpoint}`, {
         method: "GET",
         headers: {
@@ -45,6 +46,8 @@ module.exports.Api42 = class Api42 {
               statusText: response.statusText,
             });
           }
+          if (response.status === 429 && attempt < 5)
+            return this.#fetchUrl(endpoint, pagination, attempt + 1);
           throw new Error(
             `${response.status} ${response.statusText} - ${endpoint}`
           );
