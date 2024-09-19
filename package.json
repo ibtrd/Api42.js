@@ -1,0 +1,23 @@
+{
+  "name": "@ibertran/api42",
+  "version": "1.0.0",
+  "description": "A module for easy interaction with the 42 API",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ibtrd/Api42.js.git"
+  },
+  "author": "ibertran",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ibtrd/Api42.js/issues"
+  },
+  "homepage": "https://github.com/ibtrd/Api42.js#readme",
+  "dependencies": {
+    "parse-link-header": "^2.0.0",
+    "throttled-queue": "^2.1.4"
+  }
+}

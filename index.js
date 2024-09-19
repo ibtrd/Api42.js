@@ -18,7 +18,7 @@ module.exports.Api42 = class Api42 {
     await fetch(`${this.#site}/oauth/token`, tokenOptions)
       .then(async (response) => {
         if (response.ok) return response.json();
-        if (process.env.API42_DEV) console.error(await response.json());
+        if (process.env.API42_DEV) console.error(await response.json(),);
         throw new Error("Failed to generate 42Api token");
       })
       .then((responseJson) => {
@@ -30,7 +30,7 @@ module.exports.Api42 = class Api42 {
   }
 
   async #fetchUrl(endpoint, pagination, attempt = 0) {
-    try { await this.#getToken(); } catch { return; }
+    await this.#getToken();
     if (process.env.API42_DEV) console.warn(`${endpoint}`);
     return throttle(() => {
       const responseJson = fetch(`${endpoint}`, {
