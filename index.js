@@ -109,16 +109,6 @@ module.exports.Api42 = class Api42 {
     return await this.#paginatedFetch(url);
   }
 
-  async getPisciners(campus, year, month) {
-    let url = `${this.#site}/v2/campus/${campus}/users`;
-    if (year && month) {
-      url += `?filter[pool_year]=${year}&filter[pool_month]=${month}`;
-    } else if (year) {
-      url += `?filter[pool_year]=${year}`;
-    }
-    return this.#paginatedFetch(url);
-  }
-
   async getUserLogtime(userID, begin, end) {
     let url = `${this.#site}/v2/users/${userID}/locations_stats`;
     if (begin & end) {
@@ -131,8 +121,24 @@ module.exports.Api42 = class Api42 {
     return logtime;
   }
 
-  async getCampusUsers(campus) {
-    return this.#fetchUrl(`${this.#site}/v2/campus/${campus}/users`);
+  /**
+   * Return all the users of the given Campus
+   * @param {number} campusId - the campus id
+   * @param {number|string=} poolYear - optional pool year to filter
+   * @param {string=} poolMonth - optional pool month to filter
+   */
+  async getCampusUsers(campusId, poolYear, poolMonth) {
+    let url = `${this.#site}/v2/campus/${campusId}/users`;
+    if (poolYear) {
+      url.indexOf("?") > 1 ? (url += "&") : (url += "?");
+      url += `filter[pool_year]=${poolYear}`;
+    }
+    if (poolMonth) {
+      url.indexOf("?") > 1 ? (url += "&") : (url += "?");
+      url += `filter[pool_month]=${poolMonth}`;
+    }
+    const response = await this.#paginatedFetch(url);
+    return response.map(user => new User(this, user));
   }
 
   async getCursusProjects(cursus) {
