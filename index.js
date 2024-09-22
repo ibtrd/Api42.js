@@ -2,6 +2,10 @@ const throttledQueue = require('throttled-queue');
 const parse = require("parse-link-header");
 const { timeToSeconds } = require('./utils/logtime');
 const { tokenOptions } = require('./utils/tokenOpions');
+const { User } = require('./User');
+const { CoalitionUser } = require('./CoalitionUser');
+
+
 
 const throttle = throttledQueue(2, 1100, true);
 
@@ -80,8 +84,22 @@ module.exports.Api42 = class Api42 {
     return responsesJson;
   }
 
+  async fetchEndpoint(endpoint) {
+    return this.#fetchUrl(`${this.#site}${endpoint}`);
+  }
+
+  async paginatedFetchEndpoint(endpoint) {
+    return this.#paginatedFetch(`${this.#site}${endpoint}`);
+  }
+
+  /**
+   * Get a user
+   * @param {string | number} user The login or id of a user
+   * @returns {Class} 
+   */
   async getUser(user) {
-    return this.#fetchUrl(`${this.#site}/v2/users/${user}`);
+    const response = await this.#fetchUrl(`${this.#site}/v2/users/${user}`);
+    return new User(this, response);
   }
 
   async getCampusLocations(campus, active) {
@@ -113,7 +131,7 @@ module.exports.Api42 = class Api42 {
     return logtime;
   }
 
-  async getCampusUsuers(campus) {
+  async getCampusUsers(campus) {
     return this.#fetchUrl(`${this.#site}/v2/campus/${campus}/users`);
   }
 
@@ -121,7 +139,7 @@ module.exports.Api42 = class Api42 {
     return await this.#paginatedFetch(`${this.#site}/v2/cursus/${cursus}/projects`);
   }
 
-  async getUserProjects(user) {
+  async getUserProjectsUsers(user) {
     return await this.#paginatedFetch(`${this.#site}/v2/users/${user}/projects_users`);
   }
 
@@ -136,6 +154,20 @@ module.exports.Api42 = class Api42 {
   async getGroupUsers(groupId) {
     return await this.#paginatedFetch(`${this.#site}/v2/groups/${groupId}/groups_users`);
   }
+
+  async getUserCoalitionUsers(userId) {
+    const response = await this.#paginatedFetch(`${this.#site}/v2/users/${userId}/coalitions_users`);
+    return response.map(coalitionUser => new CoalitionUser(this, coalitionUser));
+  }
+
+  /**
+   * Description
+   * @param {any} id
+   * @returns {any}
+   */
+  async getCoalition(id) {
+    return this.#fetchUrl(`${this.#site}/v2/coalitions/${id}`);
+  }
   
   async getAllCursus() {
     return await this.#paginatedFetch(`${this.#site}/v2/cursus`);
@@ -147,6 +179,36 @@ module.exports.Api42 = class Api42 {
 
   async getAllTitles() {
     return await this.#paginatedFetch(`${this.#site}/v2/titles`);
+  }
+
+  /**
+ * Return all the correction point historics of the given User.
+ * @param {Number} id - the User id
+ * @param {Object=} options - optional filter options
+ * @param {String[]} options.reasons - string Array of reasons to filter
+ * @param {Object=} options.range - optional range filter values
+ * @param {Object} options.range.min - minimun value
+ * @param {Object} options.range.max - maximum value
+ */
+  async getUserCorrectionPointHistorics(id, options) {
+    let url = `${this.#site}/v2/users/${id}/correction_point_historics`;
+    if (options.range) {
+      url.indexOf("?") > 1 ? (url += "&") : (url += "?");
+      url += `range[updated_at]=${options.range.min},${options.range.max}`;
+    }
+    if (options.reasons) {
+      url.indexOf("?") > 1 ? (url += "&") : (url += "?");
+      url += "filter[reason]=" + options.reasons.map(r => r).join(",");
+    }
+    return await this.#paginatedFetch(url);
+  }
+
+  /**
+   * Get a project
+   * @param {string|number} id - the project id
+   */
+  async getProject(id) {
+    return this.#fetchUrl(`${this.#site}/v2/projects/${id}`);
   }
 
 };
