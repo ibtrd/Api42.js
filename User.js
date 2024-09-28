@@ -1,9 +1,12 @@
+const { CursusUser } = require("./CursusUser");
+
 module.exports.User = class User {
 	#api;
 
 	constructor(api, response) {
-		Object.assign(this, response); 
+		Object.assign(this, response);
 		this.#api = api;
+		this.cursus_users = this.cursus_users.map(e => new CursusUser(this.#api, e))
 	}
 
 	async getCoalitionUsers() {

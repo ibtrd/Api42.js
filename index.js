@@ -93,9 +93,9 @@ module.exports.Api42 = class Api42 {
   }
 
   /**
-   * Get a user
-   * @param {string | number} user The login or id of a user
-   * @returns {Class} 
+   * Get a User
+   * @param {string | number} user The login or id of a User
+   * @returns {User} 
    */
   async getUser(user) {
     const response = await this.#fetchUrl(`${this.#site}/v2/users/${user}`);
@@ -111,7 +111,7 @@ module.exports.Api42 = class Api42 {
 
   async getUserLogtime(userID, begin, end) {
     let url = `${this.#site}/v2/users/${userID}/locations_stats`;
-    if (begin & end) {
+    if (begin && end) {
       url += `?begin_at=${begin}&end_at=${end}`;
     }
     let logtime = 0;
@@ -121,11 +121,30 @@ module.exports.Api42 = class Api42 {
     return logtime;
   }
 
+
+  /**
+   * Get location stats of a User
+   * @param {string | number} user The login or id of a User
+   * @param {date=} begin optional begin date
+   * @param {date=} end optional end date
+   * @returns {object} 
+   */
+  async getUserLocationsStats(user, begin, end) {
+    let url = `${this.#site}/v2/users/${user}/locations_stats`;
+    if (begin && end) {
+      url += `?begin_at=${begin}&end_at=${end}`;
+    } else if (begin) {
+      url += `?begin_at=${begin}`
+    }
+    return await this.#fetchUrl(url);
+  }
+
   /**
    * Return all the users of the given Campus
    * @param {number} campusId - the campus id
    * @param {number|string=} poolYear - optional pool year to filter
    * @param {string=} poolMonth - optional pool month to filter
+   * @param {User[]}
    */
   async getCampusUsers(campusId, poolYear, poolMonth) {
     let url = `${this.#site}/v2/campus/${campusId}/users`;
