@@ -5,16 +5,17 @@ const { tokenOptions } = require('./utils/tokenOpions');
 const { User } = require('./User');
 const { CoalitionUser } = require('./CoalitionUser');
 
-
-
 const throttle = throttledQueue(2, 1100, true);
 
 module.exports.Api42 = class Api42 {
   #token;
   #expiration;
   #site = "https://api.intra.42.fr";
+  #secretValidUntil;
 
-  secretValidUntil;
+  getSecretValidUntil() {
+    return (this.#secretValidUntil);
+  }
 
   async #getToken() {
     if (this.#token && Date.now() < this.#expiration) return;
@@ -28,7 +29,7 @@ module.exports.Api42 = class Api42 {
       .then((responseJson) => {
         this.#token = responseJson.access_token;
         this.#expiration = responseJson.expires_in * 1000 + Date.now();
-        this.secretValidUntil = responseJson.secret_valid_until;
+        this.#secretValidUntil = responseJson.secret_valid_until;
         console.warn("42API token generated.");
       });
   }
