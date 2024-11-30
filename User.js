@@ -6,7 +6,8 @@ module.exports.User = class User {
 	constructor(api, response) {
 		Object.assign(this, response);
 		this.#api = api;
-		this.cursus_users = this.cursus_users.map(e => new CursusUser(this.#api, e))
+		if (this.cursus_users)
+			this.cursus_users = this.cursus_users.map(e => new CursusUser(this.#api, e))
 	}
 
 	async getCoalitionUsers() {
@@ -18,4 +19,15 @@ module.exports.User = class User {
 		this.correctionPointHistorics = await this.#api.getUserCorrectionPointHistorics(this.id, options);
 		return this.correctionPointHistorics;
 	}
+
+	isActive() {
+		return (this['active?']);
+	}
+
+	// async hasCursus(cursusId) {
+	// 	if (!this.cursus_users) {
+	// 		this.cursus_users = 
+	// 	}
+	// 	return (this.cursus_users.find(cursus => cursus.id === cursusId));
+	// }
 };

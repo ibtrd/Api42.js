@@ -18,7 +18,12 @@ module.exports.Api42 = class Api42 {
   }
 
   async #getToken() {
-    if (this.#token && Date.now() < this.#expiration) return;
+    if (this.#token && Date.now() + 5000 < this.#expiration) {
+      return;
+    } else if (this.#token) {
+      while (Date.now() - 1000 < this.#expiration)
+        ;
+    }
 
     await fetch(`${this.#site}/oauth/token`, tokenOptions)
       .then(async (response) => {
@@ -145,7 +150,7 @@ module.exports.Api42 = class Api42 {
    * @param {number} campusId - the campus id
    * @param {number|string=} poolYear - optional pool year to filter
    * @param {string=} poolMonth - optional pool month to filter
-   * @param {User[]}
+   * @returns {User[]}
    */
   async getCampusUsers(campusId, poolYear, poolMonth) {
     let url = `${this.#site}/v2/campus/${campusId}/users`;
@@ -194,7 +199,7 @@ module.exports.Api42 = class Api42 {
   async getCoalition(id) {
     return this.#fetchUrl(`${this.#site}/v2/coalitions/${id}`);
   }
-  
+
   async getAllCursus() {
     return await this.#paginatedFetch(`${this.#site}/v2/cursus`);
   }
@@ -237,4 +242,33 @@ module.exports.Api42 = class Api42 {
     return this.#fetchUrl(`${this.#site}/v2/projects/${id}`);
   }
 
+  /**
+   * Return all the projects users of the given Project
+   * @param {Number} id - the Project id
+   * @param {Object=} options - optional filter options
+   * @returns {[]}
+   */
+  async getProjectProjectUsers(id, options) {
+    let url = `${this.#site}/v2/projects/${id}/projects_users`;
+    if (options) {
+      if (options.status) {
+        url.indexOf("?") > 1 ? (url += "&") : (url += "?");
+        url += `filter[status]=${options.status}`;
+      }
+      if (options.campus) {
+        url.indexOf("?") > 1 ? (url += "&") : (url += "?");
+        url += `filter[campus]=${options.campus}`;
+      }
+    }
+    return this.#paginatedFetch(url);
+  }
+
+  /**
+   * Return all the project sessions of the given Project
+   * @param {Number} id - the Project id
+   * @returns {[]}
+   */
+  async getProjectProjectSessions(id) {
+    return this.#paginatedFetch(`${this.#site}/v2/projects/${id}/project_sessions`);
+  }
 };
