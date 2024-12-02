@@ -4,6 +4,7 @@ const { timeToSeconds } = require('./utils/logtime');
 const { tokenOptions } = require('./utils/tokenOpions');
 const { User } = require('./User');
 const { CoalitionUser } = require('./CoalitionUser');
+const { appendOptions } = require('./utils/appendOptions');
 
 const throttle = throttledQueue(2, 1100, true);
 
@@ -249,18 +250,11 @@ module.exports.Api42 = class Api42 {
    * @returns {[]}
    */
   async getProjectProjectUsers(id, options) {
-    let url = `${this.#site}/v2/projects/${id}/projects_users`;
-    if (options) {
-      if (options.status) {
-        url.indexOf("?") > 1 ? (url += "&") : (url += "?");
-        url += `filter[status]=${options.status}`;
-      }
-      if (options.campus) {
-        url.indexOf("?") > 1 ? (url += "&") : (url += "?");
-        url += `filter[campus]=${options.campus}`;
-      }
+    const url = `${this.#site}/v2/projects/${id}/projects_users`;
+    if (!options) {
+      return this.#paginatedFetch(url);
     }
-    return this.#paginatedFetch(url);
+    return this.#paginatedFetch(appendOptions(url, options));
   }
 
   /**
