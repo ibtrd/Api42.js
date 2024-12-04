@@ -96,6 +96,10 @@ module.exports.Api42 = class Api42 {
     });
   }
 
+  /**
+   * Returns the API authorize url
+   * @returns {string}
+   */
   getOAuthUrl() {
     if (!this.#redirectUri) {
       throw new Error(`42api: undefined redirect URI`);
