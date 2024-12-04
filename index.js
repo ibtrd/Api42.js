@@ -39,7 +39,7 @@ module.exports.Api42 = class Api42 {
 
   async #getToken() {
     if (this.#token && Date.now() + 5000 < this.#expiration) {
-      return;
+      return this.#token;
     } else if (this.#token) {
       while (Date.now() - 1000 < this.#expiration)
         ;
@@ -55,18 +55,21 @@ module.exports.Api42 = class Api42 {
         this.#token = responseJson.access_token;
         this.#expiration = responseJson.expires_in * 1000 + Date.now();
         this.#secretValidUntil = responseJson.secret_valid_until;
-        console.warn("42API token generated.");
+        if (process.env.API42_DEV) console.warn("42API token generated.");
       });
+      return this.#token;
   }
 
-  async #fetchUrl(endpoint, pagination, attempt = 0) {
-    await this.#getToken();
+  async #fetchUrl(endpoint, pagination, attempt = 0, token) {
+    if (!token) {
+      token = await this.#getToken();
+    }
     if (process.env.API42_DEV) console.warn(`${endpoint}`);
     return throttle(() => {
       const responseJson = fetch(`${endpoint}`, {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${this.#token}`,
+          Authorization: `Bearer ${token}`,
         },
       }).then(async (response) => {
         if (!response.ok) {
@@ -77,7 +80,7 @@ module.exports.Api42 = class Api42 {
             });
           }
           if (response.status === 429 && attempt < 5)
-            return this.#fetchUrl(endpoint, pagination, attempt + 1);
+            return this.#fetchUrl(endpoint, pagination, attempt + 1, token);
           throw new Error(
             `${response.status} ${response.statusText} - ${endpoint}`
           );
@@ -102,11 +105,46 @@ module.exports.Api42 = class Api42 {
    */
   getOAuthUrl() {
     if (!this.#redirectUri) {
-      throw new Error(`42api: undefined redirect URI`);
+      throw new Error(`api42: undefined redirect URI`);
     } else if (!this.#uid) {
-      throw new Error(`42api: undefined client UID`);
+      throw new Error(`api42: undefined client UID`);
     }
     return `${this.#oauthEndpoint}?response_type=code&client_id=${this.#uid}&redirect_uri=${this.#redirectUri}&scope=${this.#oauthScopes.join(" ")}`;
+  }
+
+  async getToken(code) {
+    const requestBody = new URLSearchParams({
+      grant_type: "authorization_code",
+      code: code,
+      client_id: this.#uid,
+      client_secret: this.#secret,
+      redirect_uri: this.#redirectUri,
+    });
+
+    const response = await fetch(`${this.#site}/oauth/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: requestBody.toString(),
+    });
+  
+    if (!response.ok) {
+      throw new Error(`api42: HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  }
+
+  async refreshToken() {
+
+  }
+
+  /**
+   * Return the token owner
+   * @param {object} token
+   */
+  async whoAmI(token) {
+    return this.#fetchUrl(`${this.#site}/v2/me`, false, 0, token.access_token);
   }
 
   async #paginatedFetch(endpoint, perPage) {
@@ -159,7 +197,6 @@ module.exports.Api42 = class Api42 {
     });
     return logtime;
   }
-
 
   /**
    * Get location stats of a User
