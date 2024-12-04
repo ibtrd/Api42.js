@@ -21,16 +21,13 @@ module.exports.Api42 = class Api42 {
   #oauthEndpoint = "https://api.intra.42.fr/oauth/authorize";
   #oauthScopes =  ["public"];
 
-  constructor(config) {
-    if (config) {
-      this.#uid = config.uid;
-      this.#secret = config.secret;
-      this.#redirectUri = config.redirectUri;
-    } else {
-      this.#uid = process.env.API42_UID;
-      this.#secret = process.env.API42_SECRET;
-      this.#redirectUri = process.env.API42_REDIRECT_URI;
+  constructor(uid, secret, redirectUri) {
+    if (!uid || !secret) {
+      throw new Error("Missing 42API credentials");
     }
+    this.#uid = uid;
+    this.#secret = secret;
+    this.#redirectUri = redirectUri;
   }
 
   getSecretValidUntil() {
