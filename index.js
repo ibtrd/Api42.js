@@ -11,8 +11,27 @@ const throttle = throttledQueue(2, 1100, true);
 module.exports.Api42 = class Api42 {
   #token;
   #expiration;
-  #site = "https://api.intra.42.fr";
   #secretValidUntil;
+
+  #uid;
+  #secret;
+  #redirectUri;
+
+  #site = "https://api.intra.42.fr";
+  #oauthEndpoint = "https://api.intra.42.fr/oauth/authorize";
+  #oauthScopes =  ["public"];
+
+  constructor(config) {
+    if (config) {
+      this.#uid = config.uid;
+      this.#secret = config.secret;
+      this.#redirectUri = config.redirectUri;
+    } else {
+      this.#uid = process.env.API42_UID;
+      this.#secret = process.env.API42_SECRET;
+      this.#redirectUri = process.env.API42_REDIRECT_URI;
+    }
+  }
 
   getSecretValidUntil() {
     return (this.#secretValidUntil);
@@ -75,6 +94,15 @@ module.exports.Api42 = class Api42 {
       });
       return responseJson;
     });
+  }
+
+  getOAuthUrl() {
+    if (!this.#redirectUri) {
+      throw new Error(`42api: undefined redirect URI`);
+    } else if (!this.#uid) {
+      throw new Error(`42api: undefined client UID`);
+    }
+    return `${this.#oauthEndpoint}?response_type=code&client_id=${this.#uid}&redirect_uri=${this.#redirectUri}&scope=${this.#oauthScopes.join(" ")}`;
   }
 
   async #paginatedFetch(endpoint, perPage) {
