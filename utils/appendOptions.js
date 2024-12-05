@@ -1,3 +1,9 @@
+/**
+ * Description
+ * @param {any} url
+ * @param {any} options
+ * @returns {any}
+ */
 module.exports.appendOptions = function (url, options) {
   if (options.filter) {
       for (const [key, value] of Object.entries(options.filter)) {
@@ -13,3 +19,4 @@ module.exports.appendOptions = function (url, options) {
   }
   return (url);
 };
+

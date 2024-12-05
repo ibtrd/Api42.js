@@ -1,169 +1,255 @@
-const throttledQueue = require('throttled-queue');
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   index.js                                           :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: ibertran <ibertran@student.42lyon.fr>      +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2024/12/05 03:04:17 by ibertran          #+#    #+#             */
+/*   Updated: 2024/12/05 05:01:09 by ibertran         ###   ########lyon.fr   */
+/*                                                                            */
+/* ************************************************************************** */
+
+const pThrottle = require('p-throttle').default;
 const parse = require("parse-link-header");
-const { timeToSeconds } = require('./utils/logtime');
-const { tokenOptions } = require('./utils/tokenOpions');
-const { User } = require('./User');
-const { CoalitionUser } = require('./CoalitionUser');
+// const { timeToSeconds } = require('./utils/logtime');
+const { User } = require('./srcs/User');
+const { CoalitionUser } = require('./srcs/CoalitionUser');
 const { appendOptions } = require('./utils/appendOptions');
 
-const throttle = throttledQueue(2, 1100, true);
+const throttle = pThrottle({ limit: 1, interval: 600 });
+
+const API_TOKEN_URL = "https://api.intra.42.fr/oauth/token";
 
 module.exports.Api42 = class Api42 {
-  #token;
-  #expiration;
-  #secretValidUntil;
-
   #uid;
   #secret;
   #redirectUri;
 
+  #token;
+  #debugmode = false;
+
   #site = "https://api.intra.42.fr";
   #oauthEndpoint = "https://api.intra.42.fr/oauth/authorize";
   #oauthScopes =  ["public"];
+  
+  #fetch = throttle(this.#fetchTemplate.bind(this));
+  #appTokenReqBody;
 
   constructor(uid, secret, redirectUri) {
     if (!uid || !secret) {
-      throw new Error("Missing 42API credentials");
+      throw new Error("api42: Missing 42API app credentials");
     }
     this.#uid = uid;
     this.#secret = secret;
     this.#redirectUri = redirectUri;
+
+    // Pre-build the token request body
+    const appTokenParams = new URLSearchParams();
+    appTokenParams.append("grant_type", "client_credentials");
+    appTokenParams.append("client_id", uid);
+    appTokenParams.append("client_secret", secret);
+    this.#appTokenReqBody = appTokenParams.toString();    
+  }
+  
+  /**
+   * Set `debug mode` to either `true` or `false`. While
+   * set to `true`, the client announce endpoints it fetches
+   * and token related informations throught `console.warn()`
+   * @param {boolean} mode the expected mode
+   */
+  setDebugMode(mode) {
+    this.#debugmode = mode;
   }
 
   getSecretValidUntil() {
-    return (this.#secretValidUntil);
-  }
-
-  async #getToken() {
-    if (this.#token && Date.now() + 5000 < this.#expiration) {
-      return this.#token;
-    } else if (this.#token) {
-      while (Date.now() - 1000 < this.#expiration)
-        ;
-    }
-
-    await fetch(`${this.#site}/oauth/token`, tokenOptions)
-      .then(async (response) => {
-        if (response.ok) return response.json();
-        if (process.env.API42_DEV) console.error(await response.json(),);
-        throw new Error("Failed to generate 42Api token");
-      })
-      .then((responseJson) => {
-        this.#token = responseJson.access_token;
-        this.#expiration = responseJson.expires_in * 1000 + Date.now();
-        this.#secretValidUntil = responseJson.secret_valid_until;
-        if (process.env.API42_DEV) console.warn("42API token generated.");
-      });
-      return this.#token;
-  }
-
-  async #fetchUrl(endpoint, pagination, attempt = 0, token) {
-    if (!token) {
-      token = await this.#getToken();
-    }
-    if (process.env.API42_DEV) console.warn(`${endpoint}`);
-    return throttle(() => {
-      const responseJson = fetch(`${endpoint}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }).then(async (response) => {
-        if (!response.ok) {
-          if (process.env.API42_DEV) {
-            console.error("Error:", {
-              status: response.status,
-              statusText: response.statusText,
-            });
-          }
-          if (response.status === 429 && attempt < 5)
-            return this.#fetchUrl(endpoint, pagination, attempt + 1, token);
-          throw new Error(
-            `${response.status} ${response.statusText} - ${endpoint}`
-          );
-        }
-        if (pagination) {
-          var links = parse(response.headers.get("link"));
-          return {
-            next: links && links.next ? links.next.url : null,
-            responseJson: response.json(),
-          };
-        } else {
-          return response.json();
-        }
-      });
-      return responseJson;
-    });
+    return (this.#token.secret_valid_until);
   }
 
   /**
    * Returns the API authorize url
-   * @returns {string}
+   * @returns {string} the url
    */
   getOAuthUrl() {
     if (!this.#redirectUri) {
-      throw new Error(`api42: undefined redirect URI`);
-    } else if (!this.#uid) {
-      throw new Error(`api42: undefined client UID`);
+      throw new Error(`api42: Undefined redirect URI`);
     }
     return `${this.#oauthEndpoint}?response_type=code&client_id=${this.#uid}&redirect_uri=${this.#redirectUri}&scope=${this.#oauthScopes.join(" ")}`;
   }
 
-  async getToken(code) {
-    const requestBody = new URLSearchParams({
+/* ************************************************************************** */
+/*                              TOKEN MANAGEMENT                              */
+/* ************************************************************************** */
+
+  /**
+   * Return an access token belonging to the application
+   * If a valid token is stored, it is returned
+   * If an expired token is stored, a new one is generated and returned
+   * If a close to expire token is stored, a new one is generated and returned
+   * If no token are stored, a new one is generated and returned
+   * @returns {string} The access token
+   */
+  async #getAppToken() {
+    // Return current access token as long as it exist and is still valid
+    if (this.#token && Date.now() < this.#token.expires_at - 1000) {
+      return this.#token.access_token;
+    }
+
+    // Make sure the token has expired before requesting a new one
+    await this.#waitUntilTokenExpires();
+
+    // Generate a new appplication owned access token and returns it
+    if (this.#debugmode) console.warn(`api42: Generating new token`);
+    const response = await fetch(API_TOKEN_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: this.#appTokenReqBody,
+    });
+    if (!response.ok) {
+      if (this.#debugmode) console.error(`api42: HTTP error! ${response.status} ${response.statusText}`);
+      throw new Error(`HTTP error! ${response.status} ${response.statusText}`);
+    }
+    this.#token = await response.json();
+    
+    // Compute expiry time
+    this.#token.expires_at = Date.now() + this.#token.expires_in * 1000;
+    return this.#token.access_token;
+  }
+
+   // Wait until the token is about to expire
+   async #waitUntilTokenExpires() {
+    const timeRemaining = this.#token ? this.#token.expires_at - Date.now() + 1000 : 0;
+    const waitTime = timeRemaining > 0 ? timeRemaining : 0;
+
+    if (waitTime > 0) {
+      if (this.#debugmode) console.warn(`api42: Token is about to expire in ${Math.round(waitTime / 1000)} seconds. Waiting for expiry...`);
+      // Delay the next action until the token expires
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+
+  async #getUserToken(token) {
+    // Return the user access token as long as it is not close to expire
+    if (Date.now() < token.expires_at - 1000 * 60 * 5) {
+      return token.access_token;
+    }
+
+    // Refresh the token and returns it
+    token = this.refreshUserToken(token);
+    return token.access_token;
+  }
+
+  /**
+   * Generate a new User owned access token and returns it
+   * @param {string} code The code resulting of an authentification through getOAuthUrl()
+   */
+  async generateUserToken(code) {
+    if (this.#debugmode) console.warn(`api42: Generating user owned token`);
+    const params = new URLSearchParams({
       grant_type: "authorization_code",
       code: code,
       client_id: this.#uid,
       client_secret: this.#secret,
       redirect_uri: this.#redirectUri,
     });
+    const response = await fetch(`${this.#site}/oauth/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
+    });
+    if (!response.ok) {
+      throw new Error(`api42: HTTP error! ${response.status} ${response.statusText}`);
+    }
+
+    // Compute expiry time
+    const token = await response.json();
+    token.expires_at = Date.now() + token.expires_in * 1000;
+    console.log(token);
+    return token;
+  }
+
+  /**
+   * Refresh a User owned access token and returns it
+   * @param {any} token The token to refresh
+   */
+  async refreshUserToken(token) {
+    if (this.#debugmode) console.warn(`api42: Refreshing user owned token`);
+    const params = new URLSearchParams();
+    params.append('grant_type', 'refresh_token');
+    params.append('refresh_token', token.refresh_token);
+    params.append('client_id', this.#uid);
+    params.append('client_secret', this.#secret);
 
     const response = await fetch(`${this.#site}/oauth/token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: requestBody.toString(),
+      body: params.toString(),
     });
-  
     if (!response.ok) {
       throw new Error(`api42: HTTP error! status: ${response.status}`);
+    }
+    token = await response.json();
+
+  }
+
+  async #fetchTemplate(endpoint, pagination, attempt = 0, token = null) {
+    const accessToken = token ? await this.#getUserToken(token) : await this.#getAppToken()
+    // console.log("ACCESSTOKEN: ", accessToken);
+    if (this.#debugmode) console.warn(`${endpoint}`);
+    
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+    if (!response.ok) {
+      console.error(`api42: HTTP error! ${response.status} ${response.statusText}`);
+      if (response.status === 429 && attempt < 5) {
+        return this.#fetch(endpoint, pagination, attempt + 1, token)
+      }
+      throw new Error(`HTTP error! ${response.status} ${response.statusText}`);
+    }
+    if (pagination) {
+      const links = parse(response.headers.get("link"));
+      return {
+        next: links && links.next ? links.next.url : null,
+        responseJson: response.json(),
+      };
     }
     return await response.json();
   }
 
-  async refreshToken() {
-
-  }
-
-  /**
-   * Return the token owner
-   * @param {object} token
-   */
-  async whoAmI(token) {
-    return this.#fetchUrl(`${this.#site}/v2/me`, false, 0, token.access_token);
-  }
-
-  async #paginatedFetch(endpoint, perPage) {
-    if (!perPage) perPage = 100;
+  async #paginatedFetch(endpoint, perPage = 100, attempt, token) {
     endpoint.indexOf("?") > 1 ? (endpoint += "&") : (endpoint += "?");
     endpoint += `per_page=${perPage}`;
-
-    var responsesJson = [];
+  
+    const pages = [];
+    let response;
     do {
-      var response = await this.#fetchUrl(endpoint, 1);
-      responsesJson.push(...(await response.responseJson));
+      response = await this.#fetch(endpoint, 1, attempt, token);
+      pages.push(...(await response.responseJson));
       endpoint = response.next;
     } while (response.next);
-    return responsesJson;
+    return pages;
   }
 
-  async fetchEndpoint(endpoint) {
-    return this.#fetchUrl(`${this.#site}${endpoint}`);
+/* ************************************************************************** */
+/*                                 API  CALLS                                 */
+/* ************************************************************************** */
+
+  async fetch(endpoint, token) {
+    return this.#fetch(`${this.#site}${endpoint}`, false, 0, token);
   }
 
-  async paginatedFetchEndpoint(endpoint) {
-    return this.#paginatedFetch(`${this.#site}${endpoint}`);
+  async fetchPages(endpoint, perPage, token) {
+    return this.#paginatedFetch(`${this.#site}${endpoint}`, perPage, 0, token);
   }
 
   /**
@@ -172,7 +258,7 @@ module.exports.Api42 = class Api42 {
    * @returns {User} 
    */
   async getUser(user) {
-    const response = await this.#fetchUrl(`${this.#site}/v2/users/${user}`);
+    const response = await this.#fetch(`${this.#site}/v2/users/${user}`);
     return new User(this, response);
   }
 
@@ -189,7 +275,7 @@ module.exports.Api42 = class Api42 {
       url += `?begin_at=${begin}&end_at=${end}`;
     }
     let logtime = 0;
-    Object.entries(await this.#fetchUrl(url)).forEach(([date, time]) => {
+    Object.entries(await this.#fetch(url)).forEach(([date, time]) => {
       logtime += timeToSeconds(time);
     });
     return logtime;
@@ -209,27 +295,18 @@ module.exports.Api42 = class Api42 {
     } else if (begin) {
       url += `?begin_at=${begin}`
     }
-    return await this.#fetchUrl(url);
+    return await this.#fetch(url);
   }
 
   /**
    * Return all the users of the given Campus
    * @param {number} campusId - the campus id
-   * @param {number|string=} poolYear - optional pool year to filter
-   * @param {string=} poolMonth - optional pool month to filter
+   * @param {object=} options - optional filter options
    * @returns {User[]}
    */
-  async getCampusUsers(campusId, poolYear, poolMonth) {
-    let url = `${this.#site}/v2/campus/${campusId}/users`;
-    if (poolYear) {
-      url.indexOf("?") > 1 ? (url += "&") : (url += "?");
-      url += `filter[pool_year]=${poolYear}`;
-    }
-    if (poolMonth) {
-      url.indexOf("?") > 1 ? (url += "&") : (url += "?");
-      url += `filter[pool_month]=${poolMonth}`;
-    }
-    const response = await this.#paginatedFetch(url);
+  async getCampusUsers(campusId, options) {
+    const url = `${this.#site}/v2/campus/${campusId}/users`;
+    const response = await this.#paginatedFetch(options ? appendOptions(url, options) : url);
     return response.map(user => new User(this, user));
   }
 
@@ -258,13 +335,8 @@ module.exports.Api42 = class Api42 {
     return response.map(coalitionUser => new CoalitionUser(this, coalitionUser));
   }
 
-  /**
-   * Description
-   * @param {any} id
-   * @returns {any}
-   */
   async getCoalition(id) {
-    return this.#fetchUrl(`${this.#site}/v2/coalitions/${id}`);
+    return await this.#fetch(`${this.#site}/v2/coalitions/${id}`);
   }
 
   async getAllCursus() {
@@ -306,7 +378,7 @@ module.exports.Api42 = class Api42 {
    * @param {string|number} id - the project id
    */
   async getProject(id) {
-    return this.#fetchUrl(`${this.#site}/v2/projects/${id}`);
+    return this.#fetch(`${this.#site}/v2/projects/${id}`);
   }
 
   /**
@@ -324,11 +396,37 @@ module.exports.Api42 = class Api42 {
   }
 
   /**
+   * Return all the projects users of the given Project
+   * @param {Number} id - the Project id
+   * @param {Object=} options - optional filter options
+   * @returns {[object]}
+   */
+  async getProjectProjectUsers(id, options) {
+    const url = `${this.#site}/v2/projects/${id}/projects_users`;
+    if (!options) {
+      return this.#paginatedFetch(url);
+    }
+    return this.#paginatedFetch(appendOptions(url, options));
+  }
+
+  /**
    * Return all the project sessions of the given Project
    * @param {Number} id - the Project id
-   * @returns {[]}
+   * @returns {[object]}
    */
   async getProjectProjectSessions(id) {
     return this.#paginatedFetch(`${this.#site}/v2/projects/${id}/project_sessions`);
+  }
+
+/* ************************************************************************** */
+/*                          SPECIFIC TO TOKEN OWNERS                          */
+/* ************************************************************************** */
+
+  /**
+   * Return the token owner
+   * @param {object} token
+   */
+  async whoAmI(token) {
+    return this.#fetch(`${this.#site}/v2/me`, false, 0, token);
   }
 };

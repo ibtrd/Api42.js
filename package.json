@@ -17,7 +17,7 @@
   },
   "homepage": "https://github.com/ibtrd/Api42.js#readme",
   "dependencies": {
-    "parse-link-header": "^2.0.0",
-    "throttled-queue": "^2.1.4"
+    "p-throttle": "^7.0.0",
+    "parse-link-header": "^2.0.0"
   }
 }
