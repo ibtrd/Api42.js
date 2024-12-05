@@ -6,16 +6,16 @@
 /*   By: ibertran <ibertran@student.42lyon.fr>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/05 03:04:17 by ibertran          #+#    #+#             */
-/*   Updated: 2024/12/05 05:01:09 by ibertran         ###   ########lyon.fr   */
+/*   Updated: 2024/12/05 05:05:25 by ibertran         ###   ########lyon.fr   */
 /*                                                                            */
 /* ************************************************************************** */
 
 const pThrottle = require('p-throttle').default;
 const parse = require("parse-link-header");
-// const { timeToSeconds } = require('./utils/logtime');
 const { User } = require('./srcs/User');
 const { CoalitionUser } = require('./srcs/CoalitionUser');
 const { appendOptions } = require('./utils/appendOptions');
+const { timeToSeconds } = require('./utils/logtime');
 
 const throttle = pThrottle({ limit: 1, interval: 600 });
 
