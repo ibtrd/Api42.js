@@ -1,6 +1,6 @@
 {
   "name": "@ibertran/api42",
-  "version": "1.3.0",
+  "version": "2.0.0",
   "description": "A module for easy interaction with the 42 API",
   "main": "index.js",
   "scripts": {
