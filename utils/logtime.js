@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   logtime.js                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: ibertran <ibertran@student.42lyon.fr>      +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2024/12/05 13:23:32 by ibertran          #+#    #+#             */
+/*   Updated: 2024/12/05 13:23:34 by ibertran         ###   ########lyon.fr   */
+/*                                                                            */
+/* ************************************************************************** */
+
 // Function to convert time (HH:MM:SS.SSS) to seconds
 module.exports.timeToSeconds = function (time) {
   const [hours, minutes, seconds] = time.split(":").map(Number);

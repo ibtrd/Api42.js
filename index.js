@@ -6,7 +6,7 @@
 /*   By: ibertran <ibertran@student.42lyon.fr>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/05 03:04:17 by ibertran          #+#    #+#             */
-/*   Updated: 2024/12/05 05:35:56 by ibertran         ###   ########lyon.fr   */
+/*   Updated: 2024/12/05 13:20:28 by ibertran         ###   ########lyon.fr   */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,8 +14,9 @@ const pThrottle = require('p-throttle').default;
 const parse = require("parse-link-header");
 const { User } = require('./srcs/User');
 const { CoalitionUser } = require('./srcs/CoalitionUser');
-const { appendOptions } = require('./utils/appendOptions');
 const { timeToSeconds } = require('./utils/logtime');
+const addPageSize = require('./srcs/url/pageSize');
+const appendOptions = require('./srcs/url/appendOptions');
 
 const throttle = pThrottle({ limit: 1, interval: 600 });
 
@@ -199,7 +200,7 @@ module.exports.Api42 = class Api42 {
 
   }
 
-  async #fetchTemplate(endpoint, pagination, attempt = 0, token = null) {
+  async #fetchTemplate(endpoint, pagination = false, attempt = 0, token = null) {
     const accessToken = token ? await this.#getUserToken(token) : await this.#getAppToken()
     if (this.#debugmode) console.warn(`${endpoint}`);
     
@@ -226,10 +227,8 @@ module.exports.Api42 = class Api42 {
     return await response.json();
   }
 
-  async #paginatedFetch(endpoint, perPage = 100, attempt, token) {
-    endpoint.indexOf("?") > 1 ? (endpoint += "&") : (endpoint += "?");
-    endpoint += `per_page=${perPage}`;
-  
+  async #paginatedFetch(endpoint, pageSize = 100, attempt, token) {
+    endpoint = addPageSize(endpoint, pageSize);
     const pages = [];
     let response;
     do {
@@ -244,18 +243,48 @@ module.exports.Api42 = class Api42 {
 /*                                 API  CALLS                                 */
 /* ************************************************************************** */
 
-  async fetch(endpoint, token) {
-    return this.#fetch(`${this.#site}${endpoint}`, false, 0, token);
-  }
-
-  async fetchPages(endpoint, perPage, token) {
-    return this.#paginatedFetch(`${this.#site}${endpoint}`, perPage, 0, token);
+/**
+ * Fetches data from the specified API endpoint using the `GET` method.
+ * Handles both simple and paginated requests.
+ * @param {string} endpoint - The API endpoint to fetch, relative to the base URL.
+ *                           Refer to `https://api.intra.42.fr/apidoc` for available endpoints.
+ * @param {object} [options=null] - Optional configuration for the request.
+ * @param {number} [options.pageSize] - If provided, enables paginated fetching, specifying the number of items per page.
+ * @param {string} [options.token] - An optional authorization token. Previously generated using the `generateUserToken()` method
+ *                                  Unless specified, the client uses it's own authorization token.
+ * @returns {Promise<object | object[]>} - Resolves to the API response
+ * 
+ * @throws {Error} - Throws an error if the request fails (e.g., network issues, invalid endpoint, or unauthorized access).
+ * 
+ * @example
+ * // Fetch a single page of data:
+ * const data = await client.fetch('/v2/users/ibertran');
+ *
+ * @example
+ * // Fetch all pages of data with pagination:
+ * const data = await client.fetch('/v2/users', { pageSize: 100, token: token });
+ */
+  async fetch(endpoint, options = null) {
+    if (options && options.pageSize) {
+      return this.#paginatedFetch(
+        appendOptions(`${this.#site}${endpoint}`, options),
+        options.pageSize,
+        0,
+        options ? options.token : null
+      );
+    }
+    return this.#fetch(
+      appendOptions(`${this.#site}${endpoint}`, options),
+      false,
+      0,
+      options ? options.token : null
+    );
   }
 
   /**
    * Get a User
-   * @param {string | number} user The login or id of a User
-   * @returns {User} 
+   * @param {string | number} user The id or login of a User
+   * @returns {Promise<User>} - Resolves to the API response 
    */
   async getUser(user) {
     const response = await this.#fetch(`${this.#site}/v2/users/${user}`);
