@@ -6,7 +6,7 @@
 /*   By: ibertran <ibertran@student.42lyon.fr>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/05 03:04:17 by ibertran          #+#    #+#             */
-/*   Updated: 2024/12/05 05:05:25 by ibertran         ###   ########lyon.fr   */
+/*   Updated: 2024/12/05 05:35:56 by ibertran         ###   ########lyon.fr   */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,7 +26,7 @@ module.exports.Api42 = class Api42 {
   #secret;
   #redirectUri;
 
-  #token;
+  #token = {};
   #debugmode = false;
 
   #site = "https://api.intra.42.fr";
@@ -115,6 +115,7 @@ module.exports.Api42 = class Api42 {
     
     // Compute expiry time
     this.#token.expires_at = Date.now() + this.#token.expires_in * 1000;
+    this.#token.secret_valid_until *= 1000;
     return this.#token.access_token;
   }
 
@@ -167,8 +168,8 @@ module.exports.Api42 = class Api42 {
 
     // Compute expiry time
     const token = await response.json();
+    this.#token.secret_valid_until = token.secret_valid_until * 1000;
     token.expires_at = Date.now() + token.expires_in * 1000;
-    console.log(token);
     return token;
   }
 
@@ -200,7 +201,6 @@ module.exports.Api42 = class Api42 {
 
   async #fetchTemplate(endpoint, pagination, attempt = 0, token = null) {
     const accessToken = token ? await this.#getUserToken(token) : await this.#getAppToken()
-    // console.log("ACCESSTOKEN: ", accessToken);
     if (this.#debugmode) console.warn(`${endpoint}`);
     
     const response = await fetch(endpoint, {
