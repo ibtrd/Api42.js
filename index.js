@@ -6,7 +6,7 @@
 /*   By: ibertran <ibertran@student.42lyon.fr>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/05 03:04:17 by ibertran          #+#    #+#             */
-/*   Updated: 2024/12/05 13:20:28 by ibertran         ###   ########lyon.fr   */
+/*   Updated: 2024/12/09 18:30:54 by ibertran         ###   ########lyon.fr   */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -211,7 +211,7 @@ module.exports.Api42 = class Api42 {
       },
     })
     if (!response.ok) {
-      console.error(`api42: HTTP error! ${response.status} ${response.statusText}`);
+      if (this.#debugmode) console.error(`api42: HTTP error! ${response.status} ${response.statusText}`);
       if (response.status === 429 && attempt < 5) {
         return this.#fetch(endpoint, pagination, attempt + 1, token)
       }
