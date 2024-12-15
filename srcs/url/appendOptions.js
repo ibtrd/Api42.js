@@ -6,7 +6,7 @@
 /*   By: ibertran <ibertran@student.42lyon.fr>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/05 13:23:00 by ibertran          #+#    #+#             */
-/*   Updated: 2024/12/09 19:05:13 by ibertran         ###   ########lyon.fr   */
+/*   Updated: 2024/12/15 03:59:43 by ibertran         ###   ########lyon.fr   */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -56,7 +56,7 @@ function appendOptions(url, options) {
   if (options.filter) {
       for (const [key, value] of Object.entries(options.filter)) {
           url.indexOf("?") > 1 ? (url += "&") : (url += "?");
-          url += `filter[${key}]=${value}`;
+          url += `filter[${key}]=${value.lenth ? value.join(',') : value}`;
     }
   }
   if (options.range) {
