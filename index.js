@@ -6,7 +6,7 @@
 /*   By: ibertran <ibertran@student.42lyon.fr>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/05 03:04:17 by ibertran          #+#    #+#             */
-/*   Updated: 2024/12/09 18:30:54 by ibertran         ###   ########lyon.fr   */
+/*   Updated: 2024/12/16 19:21:19 by ibertran         ###   ########lyon.fr   */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -196,8 +196,13 @@ module.exports.Api42 = class Api42 {
     if (!response.ok) {
       throw new Error(`api42: HTTP error! status: ${response.status}`);
     }
-    token = await response.json();
-
+    const newToken = await response.json();
+    newToken.expires_at = Date.now() + newToken.expires_in * 1000;
+    for (const key in newToken) {
+      if (newToken.hasOwnProperty(key)) {
+        token[key] = newToken[key];
+      }
+    }
   }
 
   async #fetchTemplate(endpoint, pagination = false, attempt = 0, token = null) {
