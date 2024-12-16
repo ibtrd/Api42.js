@@ -6,7 +6,7 @@
 /*   By: ibertran <ibertran@student.42lyon.fr>      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/12/05 03:04:17 by ibertran          #+#    #+#             */
-/*   Updated: 2024/12/16 19:21:19 by ibertran         ###   ########lyon.fr   */
+/*   Updated: 2024/12/16 23:49:24 by ibertran         ###   ########lyon.fr   */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -90,7 +90,7 @@ module.exports.Api42 = class Api42 {
    * If no token are stored, a new one is generated and returned
    * @returns {string} The access token
    */
-  async #getAppToken() {
+  async #getAppAccessToken() {
     // Return current access token as long as it exist and is still valid
     if (this.#token && Date.now() < this.#token.expires_at - 1000) {
       return this.#token.access_token;
@@ -132,14 +132,14 @@ module.exports.Api42 = class Api42 {
     }
   }
 
-  async #getUserToken(token) {
+  async #getUserAccessToken(token) {
     // Return the user access token as long as it is not close to expire
     if (Date.now() < token.expires_at - 1000 * 60 * 5) {
       return token.access_token;
     }
 
     // Refresh the token and returns it
-    token = this.refreshUserToken(token);
+    await this.refreshUserToken(token);
     return token.access_token;
   }
 
@@ -206,7 +206,7 @@ module.exports.Api42 = class Api42 {
   }
 
   async #fetchTemplate(endpoint, pagination = false, attempt = 0, token = null) {
-    const accessToken = token ? await this.#getUserToken(token) : await this.#getAppToken()
+    const accessToken = token ? await this.#getUserAccessToken(token) : await this.#getAppAccessToken()
     if (this.#debugmode) console.warn(`${endpoint}`);
     
     const response = await fetch(endpoint, {
